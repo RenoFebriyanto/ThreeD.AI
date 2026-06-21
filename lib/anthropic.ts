@@ -56,23 +56,46 @@ Respond in EXACT JSON only, no markdown:
 
 export async function generateBatch(input: GenerationInput): Promise<GenerationOutput> {
   const { niche = "technology", assetType, targetMarket, count = 10 } = input;
+  const safeCount = Math.min(Math.max(Number(count) || 10, 1), 20);
 
-  const prompt = `You are an expert Adobe Stock contributor. Generate ${count} high-demand stock asset ideas for niche: "${niche}". Asset type: ${assetType}. Target market: ${targetMarket}.
+  const prompt = `You are an expert Adobe Stock contributor. Generate EXACTLY ${safeCount} high-demand stock asset ideas for niche: "${niche}". Asset type: ${assetType}. Target market: ${targetMarket}.
+
+The "ideas" array in your response MUST contain exactly ${safeCount} items — not more, not fewer.
 
 Respond in EXACT JSON only, no markdown:
 {"ideas":[{"title":"asset title","type":"vector or photo or illustration or video","concept":"Brief concept 1 sentence","whyTrending":"Why this sells well on Adobe Stock","keywords":["kw1","kw2","kw3","kw4","kw5"]}]}`;
 
-  return callClaude(prompt);
+  // Batch needs more headroom than single-asset generations since output scales with count.
+  return callClaude(prompt, Math.min(1024 + safeCount * 150, 4096));
 }
 
-async function callClaude(prompt: string): Promise<GenerationOutput> {
+/**
+ * Extracts a JSON object from a Claude text response, tolerating accidental
+ * markdown fences or leading/trailing prose Claude may add despite instructions.
+ */
+function extractJson(text: string): string {
+  const fenced = text.replace(/```json|```/g, "").trim();
+  const firstBrace = fenced.indexOf("{");
+  const lastBrace = fenced.lastIndexOf("}");
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+    return fenced;
+  }
+  return fenced.slice(firstBrace, lastBrace + 1);
+}
+
+async function callClaude(prompt: string, maxTokens = 1024): Promise<GenerationOutput> {
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 1024,
+    max_tokens: maxTokens,
     messages: [{ role: "user", content: prompt }],
   });
 
   const text = message.content.find((b) => b.type === "text")?.text ?? "";
-  const clean = text.replace(/```json|```/g, "").trim();
-  return JSON.parse(clean) as GenerationOutput;
+  const clean = extractJson(text);
+
+  try {
+    return JSON.parse(clean) as GenerationOutput;
+  } catch {
+    throw new Error("AI returned an unparseable response. Please try again.");
+  }
 }

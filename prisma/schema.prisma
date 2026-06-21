@@ -5,8 +5,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Plan {
@@ -14,6 +15,13 @@ enum Plan {
   STARTER
   PRO
   ENTERPRISE
+}
+
+enum AssetType {
+  vector
+  photo
+  video
+  batch
 }
 
 model User {
@@ -58,6 +66,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Session {
@@ -67,6 +76,8 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -93,14 +104,15 @@ model ApiKey {
 }
 
 model Generation {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  type      String // "vector" | "photo" | "video" | "batch"
+  type      AssetType
   input     Json
   output    Json
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([userId, type])
 }

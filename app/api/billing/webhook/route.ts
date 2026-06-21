@@ -5,12 +5,16 @@ import { prisma } from "@/lib/prisma";
 import { Plan } from "@/types";
 import Stripe from "stripe";
 
-const PRICE_TO_PLAN: Record<string, Plan> = {
-  [process.env.STRIPE_STARTER_MONTHLY ?? ""]: "STARTER",
-  [process.env.STRIPE_STARTER_YEARLY ?? ""]: "STARTER",
-  [process.env.STRIPE_PRO_MONTHLY ?? ""]: "PRO",
-  [process.env.STRIPE_PRO_YEARLY ?? ""]: "PRO",
-};
+const PRICE_TO_PLAN: Record<string, Plan> = Object.fromEntries(
+  (
+    [
+      [process.env.STRIPE_STARTER_MONTHLY, "STARTER"],
+      [process.env.STRIPE_STARTER_YEARLY, "STARTER"],
+      [process.env.STRIPE_PRO_MONTHLY, "PRO"],
+      [process.env.STRIPE_PRO_YEARLY, "PRO"],
+    ] as Array<[string | undefined, Plan]>
+  ).filter((entry): entry is [string, Plan] => Boolean(entry[0]))
+);
 
 const PLAN_CREDITS: Record<Plan, number> = {
   FREE: 10,
