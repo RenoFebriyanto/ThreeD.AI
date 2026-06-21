@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generateVector, generateImage, generateVideo, generateBatch } from "@/lib/anthropic";
+import { generateVector, generateImage, generateVideo, generateBatch } from "@/lib/ai";
 import { AssetKind, GenerationInput, GenerationOutput } from "@/types";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
