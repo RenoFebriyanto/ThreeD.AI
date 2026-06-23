@@ -36,60 +36,34 @@ export async function POST(req: NextRequest) {
 
   switch (event.type) {
     case "customer.subscription.created":
-    case "customer.subscription.updated": {
-      const sub = event.data.object as Stripe.Subscription;
-      const priceId = sub.items.data[0]?.price.id;
-      const plan = PRICE_TO_PLAN[priceId] ?? "FREE";
-      const customerId = sub.customer as string;
+case "customer.subscription.updated": {
+  const sub = event.data.object as Stripe.Subscription;
+  const item = sub.items.data[0];
+  const priceId = item?.price.id;
+  const plan = PRICE_TO_PLAN[priceId ?? ""] ?? "FREE";
+  const customerId = sub.customer as string;
 
-      const user = await prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
-      if (user) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            plan,
-            creditsLimit: PLAN_CREDITS[plan],
-            subscriptionId: sub.id,
-            subscriptionEnd: new Date(sub.current_period_end * 1000),
-          },
-        });
-      }
-      break;
-    }
+  // Stripe memindahkan current_period_end dari level Subscription ke level
+  // subscription item (API update "Basil", 2025-03-31). Baca dari item,
+  // dengan fallback ke field lama kalau-kalau API version-nya beda.
+  const periodEndUnix =
+    (item as unknown as { current_period_end?: number })?.current_period_end ??
+    (sub as unknown as { current_period_end?: number }).current_period_end;
 
-    case "customer.subscription.deleted": {
-      const sub = event.data.object as Stripe.Subscription;
-      const customerId = sub.customer as string;
-
-      const user = await prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
-      if (user) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            plan: "FREE",
-            creditsLimit: 10,
-            subscriptionId: null,
-            subscriptionEnd: null,
-          },
-        });
-      }
-      break;
-    }
-
-    case "invoice.payment_succeeded": {
-      const invoice = event.data.object as Stripe.Invoice;
-      const customerId = invoice.customer as string;
-
-      const user = await prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
-      if (user) {
-        // Reset monthly credits on renewal
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { creditsUsed: 0 },
-        });
-      }
-      break;
-    }
+  const user = await prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
+  if (user) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        plan,
+        creditsLimit: PLAN_CREDITS[plan],
+        subscriptionId: sub.id,
+        subscriptionEnd: periodEndUnix ? new Date(periodEndUnix * 1000) : null,
+      },
+    });
+  }
+  break;
+}
   }
 
   return NextResponse.json({ received: true });
