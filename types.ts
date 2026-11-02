@@ -108,3 +108,32 @@ export interface GenerationOutput {
 
   [key: string]: unknown;
 }
+
+// ── Bulk Generator ─────────────────────────────────────────────
+
+/** Asset kinds the Bulk Generator can produce. */
+export type BulkKind = "vector" | "photo";
+
+/** Metadata only (free) or metadata + rendered images (1 credit each). */
+export type BulkMode = "metadata" | "image";
+
+export type BulkStatus = "pending" | "queued" | "running" | "done" | "error";
+
+export type BulkAspectRatio = "1:1" | "4:3" | "3:2" | "16:9" | "3:4" | "2:3" | "9:16";
+export type BulkResolution = 512 | 768 | 1024 | 1536 | 2048;
+
+export interface BulkIdea {
+  title: string;
+  prompt: string;
+  keywords: string[];
+  category: string;
+}
+
+export interface BulkItem extends BulkIdea {
+  id: number;
+  status: BulkStatus;
+  mime?: string;
+  /** Object URL of the rendered blob — revoked when the batch is replaced. */
+  url?: string;
+  error?: string;
+}

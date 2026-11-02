@@ -1,7 +1,9 @@
 // app/api/generate/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { authenticate } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { claimCredit, refundCredit } from "@/lib/credits";
+import { toErrorMessage, aiErrorInfo } from "@/lib/ai/errors";
 import { generateVector, generateImage, generateVideo, generateBatch } from "@/lib/ai";
 import { AssetKind, GenerationInput, GenerationOutput } from "@/types";
 import { z } from "zod";
@@ -20,8 +22,8 @@ const GENERATORS: Record<AssetKind, (input: GenerationInput) => Promise<Generati
 };
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const caller = await authenticate(req);
+  if (!caller) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -32,32 +34,17 @@ export async function POST(req: NextRequest) {
   }
 
   const { kind, input } = parsed.data;
-  const userId = session.user.id;
+  const userId = caller.userId;
 
-  // Atomically check-and-increment credits inside a transaction so concurrent
-  // requests from the same user can't both pass the check before either
-  // write lands (avoids creditsUsed exceeding creditsLimit under race).
-  const claimResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const user = await tx.user.findUnique({
-      where: { id: userId },
-      select: { creditsUsed: true, creditsLimit: true },
-    });
+  // Atomically check-and-increment credits so concurrent requests from the
+  // same user can't both pass the check before either write lands.
+  const claim = await claimCredit(userId);
 
-    if (!user) return { ok: false as const, reason: "not_found" as const };
-    if (user.creditsUsed >= user.creditsLimit) return { ok: false as const, reason: "limit" as const };
+  if (claim === "not_found") {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
 
-    await tx.user.update({
-      where: { id: userId },
-      data: { creditsUsed: { increment: 1 } },
-    });
-
-    return { ok: true as const };
-  });
-
-  if (!claimResult.ok) {
-    if (claimResult.reason === "not_found") {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+  if (claim === "limit") {
     return NextResponse.json(
       { error: "Credit limit reached for your plan. Upgrade to continue generating." },
       { status: 403 }
@@ -80,19 +67,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ generation }, { status: 201 });
   } catch (err) {
     // Refund the credit since generation failed after it was claimed.
-    await prisma.user.update({
-      where: { id: userId },
-      data: { creditsUsed: { decrement: 1 } },
-    });
+    await refundCredit(userId);
 
-    const message = err instanceof Error ? err.message : "Generation failed. Please try again.";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const info = aiErrorInfo(err);
+    return NextResponse.json(
+      { error: toErrorMessage(err, "Generation failed. Please try again."), kind: info.kind },
+      { status: 502 }
+    );
   }
 }
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const caller = await authenticate(req);
+  if (!caller) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -107,7 +94,7 @@ export async function GET(req: NextRequest) {
   }
 
   const where = {
-    userId: session.user.id,
+    userId: caller.userId,
     ...(typeParam ? { type: typeParam as (typeof VALID_TYPES)[number] } : {}),
   };
 

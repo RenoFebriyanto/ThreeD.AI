@@ -5,21 +5,24 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session?.user) {
+  const isDevelopment = process.env.NODE_ENV === "development";
+  if (!session?.user && !isDevelopment) {
     redirect("/login");
   }
 
+  const user = session?.user;
+
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white lg:flex">
+    <div className="h-screen overflow-hidden bg-[#09090b] text-white lg:flex">
       <DashboardSidebar
         user={{
-          name: session.user.name ?? null,
-          email: session.user.email ?? null,
-          image: session.user.image ?? null,
+          name: user?.name ?? (isDevelopment ? "Developer" : null),
+          email: user?.email ?? (isDevelopment ? "Local development" : null),
+          image: user?.image ?? null,
         }}
       />
-      <main className="flex-1 lg:pl-64">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-10 py-8 lg:py-12">{children}</div>
+      <main className="min-w-0 flex-1 lg:ml-[184px]">
+        <div className="h-screen overflow-y-auto">{children}</div>
       </main>
     </div>
   );

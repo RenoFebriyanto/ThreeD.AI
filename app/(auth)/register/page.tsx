@@ -1,6 +1,6 @@
 // src/app/(auth)/register/page.tsx
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -10,7 +10,7 @@ const PLAN_LABELS: Record<string, string> = {
   pro: "Pro",
 };
 
-export default function RegisterPage() {
+function RegisterPage() {
   const router = useRouter();
   const params = useSearchParams();
   const plan = params.get("plan");
@@ -148,5 +148,15 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+// useSearchParams() opts this route into client-side rendering, so it must sit
+// behind a Suspense boundary or the production build fails while prerendering.
+export default function RegisterPageShell() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterPage />
+    </Suspense>
   );
 }

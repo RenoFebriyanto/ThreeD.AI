@@ -9,38 +9,41 @@ import {
   buildBatchPrompt,
   parseGenerationOutput,
 } from "./shared";
+import { withAiRetry } from "./errors";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const MODEL = "claude-sonnet-4-6";
 
-async function callClaude(prompt: string, maxTokens = 1024): Promise<GenerationOutput> {
-  const message = await client.messages.create({
-    model: MODEL,
-    max_tokens: maxTokens,
-    messages: [{ role: "user", content: prompt }],
-  });
+/** Raw text completion — parsing is left to the caller so features can own their schema. */
+async function complete(prompt: string, maxTokens = 1024): Promise<string> {
+  const message = await withAiRetry(() =>
+    client.messages.create({
+      model: MODEL,
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content: prompt }],
+    })
+  );
 
-  const text = message.content.find((b) => b.type === "text")?.text ?? "";
-  return parseGenerationOutput(text);
+  return message.content.find((block) => block.type === "text")?.text ?? "";
 }
 
 async function generateVector(input: GenerationInput): Promise<GenerationOutput> {
-  return callClaude(buildVectorPrompt(input));
+  return parseGenerationOutput(await complete(buildVectorPrompt(input)));
 }
 
 async function generateImage(input: GenerationInput): Promise<GenerationOutput> {
-  return callClaude(buildImagePrompt(input));
+  return parseGenerationOutput(await complete(buildImagePrompt(input)));
 }
 
 async function generateVideo(input: GenerationInput): Promise<GenerationOutput> {
-  return callClaude(buildVideoPrompt(input));
+  return parseGenerationOutput(await complete(buildVideoPrompt(input)));
 }
 
 async function generateBatch(input: GenerationInput): Promise<GenerationOutput> {
   const { prompt, safeCount } = buildBatchPrompt(input);
   // Batch needs more headroom than single-asset generations since output scales with count.
-  return callClaude(prompt, Math.min(1024 + safeCount * 150, 4096));
+  return parseGenerationOutput(await complete(prompt, Math.min(1024 + safeCount * 150, 4096)));
 }
 
 export const anthropicProvider: AiProvider = {
@@ -48,4 +51,7 @@ export const anthropicProvider: AiProvider = {
   generateImage,
   generateVideo,
   generateBatch,
+  complete,
+  // No image model on Anthropic — the Bulk Generator reports a clear error
+  // instead of silently producing nothing.
 };

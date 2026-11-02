@@ -1,8 +1,13 @@
 // src/app/page.tsx
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PLANS, formatIDR } from "@/types";
 
 export default function LandingPage() {
+  if (process.env.NODE_ENV === "development") {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white">
       {/* Nav */}

@@ -1,10 +1,10 @@
 // src/app/(auth)/reset-password/page.tsx
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function ResetPasswordPage() {
+function ResetPasswordPage() {
   const router = useRouter();
   const params = useSearchParams();
   const email = params.get("email") ?? "";
@@ -107,5 +107,15 @@ export default function ResetPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// useSearchParams() opts this route into client-side rendering, so it must sit
+// behind a Suspense boundary or the production build fails while prerendering.
+export default function ResetPasswordPageShell() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordPage />
+    </Suspense>
   );
 }

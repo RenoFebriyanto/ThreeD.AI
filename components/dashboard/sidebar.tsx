@@ -4,8 +4,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useEffect, useState } from "react";
-import { History, KeyRound, CreditCard, LogOut, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { History, KeyRound, CreditCard, Layers, LogOut, Settings, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SidebarUser {
@@ -21,7 +21,7 @@ interface CreditsState {
 }
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Generate", icon: Sparkles },
+  { href: "/dashboard", label: "Bulk Generator", icon: Layers },
   { href: "/dashboard/history", label: "Riwayat", icon: History },
   { href: "/dashboard/api-keys", label: "API Keys", icon: KeyRound },
   { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
@@ -31,27 +31,38 @@ export function DashboardSidebar({ user }: { user: SidebarUser }) {
   const pathname = usePathname();
   const [credits, setCredits] = useState<CreditsState | null>(null);
 
+  const loadCredits = useCallback(async () => {
+    try {
+      const res = await fetch("/api/user/credits");
+      if (!res.ok) return;
+      const data = await res.json();
+      setCredits({
+        plan: data.plan,
+        creditsRemaining: data.creditsRemaining,
+        creditsLimit: data.creditsLimit,
+      });
+    } catch {
+      // ignore — the credit bar just stays stale
+    }
+  }, []);
+
   useEffect(() => {
-    let cancelled = false;
-    fetch("/api/user/credits")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && data) {
-          setCredits({ plan: data.plan, creditsRemaining: data.creditsRemaining, creditsLimit: data.creditsLimit });
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
+    loadCredits();
+  }, [loadCredits, pathname]);
+
+  // Bulk generation spends a credit per image; refresh the bar when a batch ends.
+  useEffect(() => {
+    const handler = () => loadCredits();
+    window.addEventListener("credits:refresh", handler);
+    return () => window.removeEventListener("credits:refresh", handler);
+  }, [loadCredits]);
 
   const initials = (user.name || user.email || "U").charAt(0).toUpperCase();
   const creditPct = credits ? Math.min((credits.creditsRemaining / Math.max(credits.creditsLimit, 1)) * 100, 100) : 0;
 
   return (
-    <aside className="lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 border-b lg:border-b-0 lg:border-r border-white/[0.06] bg-[#0A0A0B] flex lg:flex-col">
-      <div className="flex items-center gap-2 px-6 h-16 shrink-0 border-b border-white/[0.06]">
+    <aside className="lg:fixed lg:inset-y-0 lg:left-0 lg:w-[184px] border-b lg:border-b-0 lg:border-r border-white/[0.07] bg-[#0d0d0f] flex lg:flex-col">
+      <div className="flex items-center gap-2 px-5 h-16 shrink-0">
         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-xs font-bold">
           S
         </div>
@@ -60,7 +71,14 @@ export function DashboardSidebar({ user }: { user: SidebarUser }) {
         </Link>
       </div>
 
-      <nav className="flex-1 px-3 py-6 space-y-1 hidden lg:block">
+      <nav className="flex-1 px-3 py-3 space-y-1 hidden lg:block">
+        <button
+          type="button"
+          className="mb-4 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] text-sm font-medium text-white/70 hover:bg-white/[0.07]"
+        >
+          <Plus className="h-4 w-4 text-violet-300" />
+          Baru
+        </button>
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
@@ -71,7 +89,7 @@ export function DashboardSidebar({ user }: { user: SidebarUser }) {
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                 active
-                  ? "bg-violet-500/15 text-violet-300"
+                    ? "bg-white/[0.08] text-white"
                   : "text-white/50 hover:text-white hover:bg-white/[0.04]"
               )}
             >
@@ -124,6 +142,14 @@ export function DashboardSidebar({ user }: { user: SidebarUser }) {
           >
             <LogOut className="w-4 h-4" />
           </button>
+          <Link
+            href="/dashboard/api-keys"
+            className="shrink-0 text-white/30 transition-colors hover:text-white"
+            aria-label="Pengaturan"
+            title="Pengaturan"
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
         </div>
       </div>
     </aside>

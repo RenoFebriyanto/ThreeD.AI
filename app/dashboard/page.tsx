@@ -1,16 +1,18 @@
 // app/dashboard/page.tsx
-import { GenerateForm } from "@/components/dashboard/generate-form";
+import type { Metadata } from "next";
+import { BulkGenerator } from "@/components/dashboard/bulk-generator";
+import { imageSupportHint, providerSupportsImages } from "@/lib/ai/capabilities";
+
+export const metadata: Metadata = { title: "Bulk Generator" };
 
 export default function DashboardPage() {
+  const supportsImages = providerSupportsImages();
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight mb-1">Generate Asset</h1>
-        <p className="text-sm text-white/40">
-          Pilih tipe aset, isi konsepnya, dan dapatkan prompt, keyword, serta metadata siap upload ke Adobe Stock.
-        </p>
-      </div>
-      <GenerateForm />
+    <div className="h-full">
+      <BulkGenerator
+        supportsImages={supportsImages}
+        imageHint={imageSupportHint()}
+      />
     </div>
   );
 }
