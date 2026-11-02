@@ -140,9 +140,7 @@ export function describeAiError(err: unknown): AiErrorInfo {
 
   if (
     status === 401 ||
-    status === 403 ||
     normalized === "UNAUTHENTICATED" ||
-    normalized === "PERMISSION_DENIED" ||
     normalized === "AUTHENTICATION_ERROR" ||
     /api key not valid|api_key_invalid|invalid api key|incorrect api key/i.test(detail)
   ) {
@@ -152,6 +150,16 @@ export function describeAiError(err: unknown): AiErrorInfo {
       kind: "auth",
       retryable: false,
       message: "Kredensial AI tidak valid atau ditolak. Periksa API key dan token penyedia AI di .env.",
+    };
+  }
+
+  if (status === 403 || normalized === "PERMISSION_DENIED") {
+    return {
+      status,
+      code,
+      kind: "auth",
+      retryable: false,
+      message: "Project atau API key tidak memiliki izin untuk fitur/model AI ini. Periksa pembatasan API key, akses model Gemini, dan billing project.",
     };
   }
 

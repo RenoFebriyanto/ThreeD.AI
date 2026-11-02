@@ -32,6 +32,7 @@ async function withGeminiKeyRotation<T>(
   }
 
   let lastError: unknown;
+  let quotaError: unknown;
 
   for (let attempt = 0; attempt < clients.length; attempt++) {
     const clientIndex = (activeClientIndex + attempt) % clients.length;
@@ -45,11 +46,12 @@ async function withGeminiKeyRotation<T>(
       if (kind !== "quota" && kind !== "auth") throw error;
 
       lastError = error;
+      if (kind === "quota") quotaError ??= error;
       activeClientIndex = (clientIndex + 1) % clients.length;
     }
   }
 
-  throw lastError;
+  throw quotaError ?? lastError;
 }
 
 // Flash is free-tier eligible and stable (not a preview model), which keeps

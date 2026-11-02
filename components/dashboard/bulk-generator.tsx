@@ -164,7 +164,7 @@ async function prepareReferenceImage(file: File): Promise<ReferenceImage> {
 /** Short per-tile label for failures that affect the whole batch. */
 function shortReason(kind: string | null, status: number): string {
   if (kind === "quota") return "Kuota AI habis";
-  if (kind === "auth") return "API key ditolak";
+  if (kind === "auth") return "Akses API ditolak";
   if (kind === "credits" || status === 403) return "Kredit habis";
   return "Gagal";
 }
@@ -407,6 +407,8 @@ export function BulkGenerator({
 
       const ideas = (data.ideas ?? []) as Array<Omit<BulkItem, "id" | "status">>;
       if (ideas.length === 0) throw new Error("AI tidak mengembalikan ide. Coba tema lain.");
+
+      setTheme("");
 
       if (mode === "metadata") {
         setItems(ideas.map((idea, index) => ({ ...idea, id: index + 1, status: "done" })));
